@@ -47,7 +47,7 @@ Create Date: 23 July 2021.
 //Serial configuration
 HardwareSerial loraSerial(2);
 
-byte printResponse = 0;  // if printResponse = 1 or 0
+byte printResponse = 1;  // if printResponse = 1 or 0
 String data_input;
 unsigned int previous_check = 0;
 
@@ -84,28 +84,95 @@ void ThingControl_DL7612::sendData(int type, String data) {
   sendCommand(command);
 }
 //***************************************************************************
-void ThingControl_DL7612::sendHexData(int type, String data) {
-  Serial.println("*******HEX Build");
-  String command = (String)
+String ThingControl_DL7612::sendHexData(int type, String data) {
+  String npayload;
+  String atComm = (String)
                    "AT+NMGS=" + type + "," + data + (String)
+                   "\r\n";
+  loraSerial.flush();
+  loraSerial.print(atComm + "\r\n");
+//  Serial.println("*******AT Command Sent");
+  Serial.print(atComm + "\r\n");
+  delay(300);
+
+  bool chk = false;
+  while (1) {
+    if (loraSerial.available()) {
+      data_input = loraSerial.readStringUntil('\n');
+      if (data_input.indexOf(F("+NNMI:")) != -1) {
+        byte index = data_input.indexOf(F(":"));
+        npayload = data_input.substring(index + 1, data_input.length());
+      }
+      else if (data_input.indexOf(F("OK")) != -1) {
+        break;
+      }
+    }
+  }
+  npayload.replace(F("\""), "");
+  npayload.trim();
+  npayload.toUpperCase();
+
+  blankChk(npayload);
+  data_input = "";
+  return npayload;
+}
+
+//***************************************************************************
+String ThingControl_DL7612::sendp2pHexData(int type, String data) {
+  String pppayload;
+  String atComm = (String)
+                   "AT+PMGS=" + type + "," + data + (String)
+                   "\r\n";
+  loraSerial.flush();
+  loraSerial.print(atComm + "\r\n");
+//  Serial.println("*******AT Command Sent");
+  Serial.print(atComm + "\r\n");
+  delay(300);
+
+  bool chk = false;
+  while (1) {
+    if (loraSerial.available()) {
+      data_input = loraSerial.readStringUntil('\n');
+      if (data_input.indexOf(F("+PNMI:")) != -1) {
+        byte index = data_input.indexOf(F(":"));
+        pppayload = data_input.substring(index + 1, data_input.length());
+      }
+      else if (data_input.indexOf(F("OK")) != -1) {
+        break;
+      }
+    }
+  }
+  pppayload.replace(F("\""), "");
+  pppayload.trim();
+  pppayload.toUpperCase();
+
+  blankChk(pppayload);
+  data_input = "";
+  return pppayload;
+}
+
+//***************************************************************************
+void ThingControl_DL7612::receivep2pHexData() {
+  String command = (String)
+                   "AT+PMGR"
                    "\r\n";
   sendCommand(command);
 }
 //***************************************************************************
 void ThingControl_DL7612::setupModule() {
   Serial.println(F(">>Rebooting ."));
-  reboot_module();
+  rebootModule();
   Serial.println(F(">>Check module status "));
-  check_module_ready();
+  checkModuleReady();
 }
 //***************************************************************************
-void ThingControl_DL7612::check_module_ready() {
+void ThingControl_DL7612::checkModuleReady() {
   loraSerial.println(F("AT"));
   waitCommandResponse();
   Serial.println(F("..OK"));  
 }
 //***************************************************************************
-void ThingControl_DL7612::reboot_module() {
+void ThingControl_DL7612::rebootModule() {
   loraSerial.println(F("AT+NRB"));
   delay(100);
   while (1) {
@@ -128,6 +195,11 @@ void ThingControl_DL7612::ShowConfig() {
   Serial.print("DEvice Address : "); Serial.println(getDevAddr());
   Serial.print("Application Seesion Key : "); Serial.println(getAppsKey());
   Serial.print("Network Seesion Key : "); Serial.println(getNwksKey());
+  Serial.print("ISM Band : "); Serial.println(getIsmBand());
+  Serial.print("Confirm Mode : "); Serial.println(getConfirmMode());
+  Serial.print("Adaptive Data Rate: "); Serial.println(getAdaptiveDataRate());
+  Serial.print("TX Power : "); Serial.println(getTXPower());
+  Serial.print("CSQ : "); Serial.println(getCSQ());
   Serial.println();
 }
 //***************************************************************************
@@ -138,43 +210,63 @@ void ThingControl_DL7612::connectNetwork() {
   waitCommandResponse();
   Serial.println(F("Connected Network"));
 }
+
+//***************************************************************************
+void ThingControl_DL7612::restoreFactory() {
+  ConfigMode();
+  loraSerial.println(F("AT+ RESTORE"));
+  waitCommandResponse();
+  SaveConfig();
+  Serial.println(F("Restore Factory Parameters"));
+}
+
 //********************* configure ABP ******************************************************
 // 0 = ABP, 1 = OTAA
 void ThingControl_DL7612::setJoinABP() {
+  ConfigMode();
   loraSerial.println(F("AT+ACTIVATE=0"));
-  Serial.print(F("Joined : "));Serial.println(getMode());
   waitCommandResponse();
+  SaveConfig();
+  Serial.print(F("Joined : "));Serial.println(getMode());
 }
 //************************ configure OTAA ***************************************************
 // 0 = ABP, 1 = OTAA
 void ThingControl_DL7612::setJoinOTAA() {
+  ConfigMode();
   loraSerial.println(F("AT+ACTIVATE=1"));
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Joined : "));Serial.println(getMode());
 }
 //************************ configure A Class ************************************************
 // A, B, C
 void ThingControl_DL7612::setClassA() {
+  ConfigMode();
   loraSerial.println(F("AT+CLASS=A"));
   waitCommandResponse();
+  SaveConfig();
   Serial.println(F("Class : "));Serial.println(getClass());
 }
 //************************ configure C Class ************************************************
 // A, B, C
 void ThingControl_DL7612::setClassC() {
+  ConfigMode();
   loraSerial.println(F("AT+CLASS=C"));
   waitCommandResponse();
+  SaveConfig();
   Serial.println(F("Class : "));Serial.println(getClass());
 }
 //************************ configure Adaptive Data Rate ************************************************
 // 0 disable adaptive data rate, 1 enable adaptive data rate (default)
 void ThingControl_DL7612::setAdaptiveDataRate(String mode) 
 {
+  ConfigMode();
   String command = (String)
                  "AT+ADR=" + mode + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Adaptive Data Rate Set To : "));Serial.println(mode);
 }
 /************************ configure TX power ************************************************
@@ -186,21 +278,25 @@ void ThingControl_DL7612::setAdaptiveDataRate(String mode)
 5: 2dBm
 */
 void ThingControl_DL7612::setTXPower(String mode) {
+  ConfigMode();
   String command = (String)
                  "AT+POWER=" + mode + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("TX power Set To : "));Serial.println(mode);
 }
 //************************ configure Confirm Massage Mode ************************************************
 // 0 unconfirm frame mode, 1 confirm frame mode (default)
 void ThingControl_DL7612::setConfirmMode(String mode) {
+  ConfigMode();
   String command = (String)
                  "AT+CFM=" + mode + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Confirm Massage Mode Set To : "));Serial.println(mode);
 }
 /************************ configure ISM Band of Lora TM ************************************************
@@ -213,56 +309,68 @@ void ThingControl_DL7612::setConfirmMode(String mode) {
 6 CUSTOMIZE, include channel 0 to channel 15
 */
 void ThingControl_DL7612::setIsmBand(String mode) {
+  ConfigMode();
   String command = (String)
                  "AT+ISMBAND=" + mode + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("ISM BAND Set To : "));Serial.println(mode);
 }
 //***************************************************************************
 void ThingControl_DL7612::setAppEui(String data) {
+  ConfigMode();
   String command = (String)
                  "AT+APPEUI=" + data + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Application EUI Set To : "));Serial.println(data);
 }
 //**************************************************************************
 void ThingControl_DL7612::setAppKey(String data) {
+  ConfigMode();
   String command = (String)
                  "AT+APPKEY=" + data + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Application Key Set To : "));Serial.println(data);
 }
 //***************************************************************************
 void ThingControl_DL7612::setDevAddr(String data) {
+  ConfigMode();
   String command = (String)
                  "AT+ADDR=" + data + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Device Address Set To : "));Serial.println(data);
 }
 //***************************************************************************
 void ThingControl_DL7612::setAppsKey(String data) {
+  ConfigMode();
   String command = (String)
                  "AT+APPSKEY=" + data + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Application Session Key Set To : "));Serial.println(data);
 }
 //***************************************************************************
 void ThingControl_DL7612::setNwksKey(String data) {
+  ConfigMode();
   String command = (String)
                  "AT+NWKSKEY=" + data + (String)
                  "\r\n";
   loraSerial.print(command + "\r\n");  
   waitCommandResponse();
+  SaveConfig();
   Serial.print(F("Network Session Key Set To : "));Serial.println(data);
 }
 //***************************************************************************
@@ -470,7 +578,7 @@ String ThingControl_DL7612::getConfirmMode() {
   return Mode;
 }
 //***************************************************************************
-String ThingControl_DL7612::getsetIsmBand() {
+String ThingControl_DL7612::getIsmBand() {
   loraSerial.flush();
   String Mode;
   loraSerial.println(F("AT+ISMBAND"));

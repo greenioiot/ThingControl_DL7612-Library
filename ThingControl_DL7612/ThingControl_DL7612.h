@@ -46,12 +46,15 @@ class ThingControl_DL7612{
     ThingControl_DL7612();
     void sendCommand(String atComm);
     void sendData(int type, String data);
-    void sendHexData(int type, String data);
+    String sendHexData(int type, String data);
+    String sendp2pHexData(int type, String data);
+    void receivep2pHexData();
     void setupModule();
-    void check_module_ready();
-    void reboot_module();
+    void checkModuleReady();
+    void rebootModule();
     void ShowConfig();
     void connectNetwork();
+    void restoreFactory();
     void setJoinABP();
     void setJoinOTAA();
     void setClassA();
@@ -74,7 +77,7 @@ class ThingControl_DL7612{
     String getAdaptiveDataRate();
     String getTXPower();
     String getConfirmMode();
-    String getsetIsmBand();
+    String getIsmBand();
     String getDevEui();
     String getAppEui();
     String getAppKey();
